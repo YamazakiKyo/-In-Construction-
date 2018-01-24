@@ -2,39 +2,26 @@ from tqdm import tqdm
 from time import sleep
 import numpy as np
 import pandas as pd
-
- 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn import preprocessing
 from sklearn.base import TransformerMixin
 
-class DataFrameImputer(TransformerMixin): # Encode the N/A data in dataframe
+# class DataFrameImputer(TransformerMixin): # Encode the N/A data in dataframe
+#     def __init__(self):
+#         '''Impute missing values:
+#         1. Columns of dtype object are imputed with the most frequent value in column.
+#         2. Columns of other types are imputed with mean of column.'''
+#     def fit(self, X, y=None):
+#         self.fill = pd.Series([X[c].value_counts().index[0]
+#             if X[c].dtype == np.dtype('O') else X[c].mean() for c in X],
+#             index=X.columns)
+#         return self
+#     def transform(self, X, y=None):
+#         return X.fillna(self.fill)
 
-    def __init__(self):
-        """Impute missing values.
+df = pd.read_csv('./10YearsData.csv')
 
-        Columns of dtype object are imputed with the most frequent value 
-        in column.
-
-        Columns of other types are imputed with mean of column.
-
-        """
-    def fit(self, X, y=None):
-
-        self.fill = pd.Series([X[c].value_counts().index[0]
-            if X[c].dtype == np.dtype('O') else X[c].mean() for c in X],
-            index=X.columns)
-
-        return self
-
-    def transform(self, X, y=None):
-        return X.fillna(self.fill)
-
-
-
-df = pd.read_csv(r'D:/DDA/All_Drive_v2/10yrs_In_Ex_label.csv')
-
-df['Distraction_Label'] = df['Distraction_Label'].replace('Internal', 'NaN')
+df['Distraction_Label'] = df['Distraction_Label'].replace('Internal', 'NaN') # Swich to binary labelled classification problem
 
 le = preprocessing.LabelEncoder()
 
@@ -45,7 +32,6 @@ for col in tqdm(int_list):
     df[str(col)] = le.fit_transform(df[str(col)])
     sleep(0.1)
 
-  
 for items in tqdm(df.columns):
     if df.dtypes[str(items)] == 'object':
         df[str(items)]=df[str(items)].fillna('NaN')
