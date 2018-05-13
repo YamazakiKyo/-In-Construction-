@@ -8,6 +8,6 @@ The **random forests** algorithm was utilized to rank the contributing factors o
 1. Applied the **out-of-bag** idea, instead of splitting training and testing datasets, to verify the accuracy,  
 2. Analyzed the importance of each feature by **randomly permuting** the data in each column  
 
-The 10_years_crash_data is a relatively massive datasets (1,559,927 lines, 33 features), the **result accuracy is 70%** and the most important contributing factors for the distraction-affected crashes are "age group", "crash month", "day of the week", "crash year", "vehicle year", "drivers' condition", and "cities' level"   
+The 10_years_crash_data is a relatively massive datasets (1,559,927 lines, 33 features), the **result accuracy is 90%** and the most important contributing factors for the distraction-affected crashes are "age group", "crash month", "day of the week", "crash year", "vehicle year", "drivers' condition", and "cities' level"   
 
 
