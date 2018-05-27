@@ -4,19 +4,38 @@ from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import EditedNearestNeighbours
 from imblearn.combine import SMOTEENN
 from imblearn.combine import SMOTETomek
-from imblearn.under_sampling import TomekLinks
+from imblearn.under_sampling import TomekLinks, NearMiss
 from sklearn.utils import shuffle
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, recall_score, confusion_matrix
+import math
 
 def smote(data, label):
+    # data, label = nearmiss(data, label)
     sm = SMOTE(ratio='minority',
-               k_neighbors=30,
-               m_neighbors=13,
+               k_neighbors=5,
+               m_neighbors=10,
                kind='svm',
                random_state=42,
                n_jobs=6)
     data_resampled, label_resampled = sm.fit_sample(data, label)
     # data_resampled, label_resampled = data, label
+    return data_resampled, label_resampled
+
+def nearmiss(data, label):
+    n_pos_label_0 = data[label==0, :].shape[0]
+    # n_neg_label_1 = data[label==1, :].shape[0]
+    n_neg_kep = 3*n_pos_label_0
+    dict = {0 : n_pos_label_0, 1 : n_neg_kep}
+    nm = NearMiss(ratio = dict,
+                  version = 1,
+                  random_state=42,
+                  n_jobs=6,
+                  n_neighbors=3)
+    data_resampled, label_resampled = nm.fit_sample(data, label)
     return data_resampled, label_resampled
 
 def enn(data, label):
@@ -60,15 +79,15 @@ def smote_tomek(data, label):
 
 def input_data(year, n_classes=3, one_hot=False, preprocessing=None):
     '''
-    :param 0: Fatal | 1 - 3 : Injury | 4: PDO | 5: Noise
+    :param 0: Fatal | 1: severe Injury | 3 : Complain Injury | 4: PDO | 5: Noise
     :return: training set | test set
     '''
     X_train = pd.read_csv('./data_encoded/'+str(year)+'_data.csv')
     X_train = X_train.as_matrix().astype(float)
     y_train = pd.read_csv('./data_encoded/'+str(year)+'_label.csv')
     if n_classes == 2:
-        y_train = y_train.replace([1, 2, 3, 5], 0)
-        y_train = y_train.replace(4, 1).values.flatten()
+        y_train = y_train.replace([1, 2], 0)
+        y_train = y_train.replace([3, 4, 5], 1).values.flatten()
     if n_classes == 3:
         y_train = y_train.replace([1, 2, 3, 5], 1)
         y_train = y_train.replace(4, 2).values.flatten()
@@ -98,18 +117,20 @@ def batch_feed(i, X, y, batch_size):
 def output_data(X, y):
     X = pd.DataFrame(X)
     y = pd.DataFrame(y)
-    X.to_csv('data_plot.csv', index=False)
-    y.to_csv('label_plot.csv', index=False)
+    X.to_csv('X_2.csv', index=False)
+    y.to_csv('y_2.csv', index=False)
 
 def count_value(nparr):
     unique_elements, counts_elements = np.unique(nparr, return_counts=True)
     return np.asarray((unique_elements, counts_elements))
 
 def DE_adjust(data):
+    new_data = np.zeros(shape=data.shape)
     tau1, tau2, tau3, tau4 = 0.1, 0.1, 0.03, 0.07
     SFGSS, SFHC, Fl, Fu = 8, 20, 0.1, 0.9
     KK = np.random.rand()
     Fi = np.random.rand(1, 5).flatten()
+    # print('random trigger: %s' %Fi)
     if Fi[4] < tau3:
         Fi = SFGSS
     elif tau3 <= Fi[4] and Fi[4] < tau4:
@@ -118,10 +139,62 @@ def DE_adjust(data):
         Fi = Fl + Fu * Fi[0]
     else:
         Fi = np.random.rand()
+    # print('data size: %.1f' %(data.shape[0]))
     for i in range(data.shape[0]):
         TR1 = data[np.random.randint(data.shape[0]-1), :]
         TR2 = data[np.random.randint(data.shape[0]-1), :]
         TR3 = data[np.random.randint(data.shape[0]-1), :]
-        data[i, :] = data[i, :] + KK * (TR1-data[i, :]) + Fi * (TR2-TR3)
-    return data
+        new_data[i, :] = data[i, :] + KK * (TR1-data[i, :]) + Fi * (TR2-TR3)
+        # print('Scaning row: %.1f ' %i)
+    # print('TR1: %s, TR2: %s, TR3: %s' %(TR1, TR2, TR3))
+    # print('New DE_adjusted: %s' %(new_data[0, 0: 3]))
+    return new_data
+
+def DE_synthetic(data, label, batch_size, evo_round):
+    clf = KNeighborsClassifier()
+    n_window = math.ceil(data.shape[0]/batch_size)
+    new_data = data[0, :].reshape(1, data.shape[1])
+    new_label = label[0].reshape(1, )
+    data, data_test, label, label_test = train_test_split(data, label, test_size=0.2, random_state=42)
+    for i in range(n_window):
+        print('%d th window: ' %i)
+        X_bat, y_bat = batch_feed(i, data, label, batch_size)
+        X, y = nearmiss(X_bat, y_bat)
+        X_resampled, y_resampled = smote(X, y)
+        # print('combined_syn size: %d' %(X_resampled.shape[0]))
+        X_new = X_resampled[(X.shape[0]): (X_resampled.shape[0]), :]
+        y_new = y_resampled[(y.shape[0]): (y_resampled.shape[0])]
+        clf.fit(X_resampled, y_resampled)
+        accuracy_real = accuracy_score(label_test, clf.predict(data_test))
+        # accuracy_real = recall_score(label_test, clf.predict(data_test), pos_label=0)
+        print('benchmark: %.2f' %accuracy_real)
+        X_DE = DE_adjust(X_new)
+        # print('ready to evo: %d' %(X_DE.shape[0]))
+        X_resampled_DE = np.append(X, X_DE, axis=0)
+        # print('1st evo finished: %d' %(X_resampled_DE.shape[0]))
+        y_resampled_DE = np.append(y, y_new, axis=0)
+        clf.fit(X_resampled_DE, y_resampled_DE)
+        accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
+        # accuracy_DE = recall_score(label_test, clf.predict(data_test), pos_label=0)
+        count = 0
+        print('evolution round: %d, DE_adjusted: %.2f' %(count, accuracy_DE))
+        while (accuracy_DE <= accuracy_real + 0.1) and (count < evo_round):
+            count += 1
+            X_DE = DE_adjust(X_DE) #according to the last generation
+            X_resampled_DE = np.append(X, X_DE, axis=0)
+            clf.fit(X_resampled_DE, y_resampled_DE)
+            accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
+            # accuracy_DE = recall_score(label_test, clf.predict(data_test), pos_label=0)
+            print('evolution round: %d, DE_adjusted: %.2f' %(count, accuracy_DE))
+        if accuracy_DE <= accuracy_real:
+            X_resampled_DE = X_resampled
+            y_resampled_DE = y_resampled
+        new_data = np.append(new_data, X_resampled_DE, axis=0)
+        new_label = np.append(new_label, y_resampled_DE, axis=0)
+    new_data = np.append(new_data, data_test, axis=0)
+    new_label = np.append(new_label, label_test, axis=0)
+    return new_data, new_label
+
+if __name__ == "__main__":
+    y_train = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2006_label.csv')
 
