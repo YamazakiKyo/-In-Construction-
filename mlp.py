@@ -29,6 +29,25 @@ tFloat = torch.cuda.FloatTensor
 tLong = torch.cuda.LongTensor
 # torch.cuda.manual_seed(42)
 
+batch_size = 1000
+iter = 20000
+
+LR = 0.0001
+N_INPUT = 29
+N_H1 = 35
+N_H2 = 20
+N_H3 = 10
+N_OUTPUT = 2
+
+BIAS = -0.2
+BN_MOMEN = 0.5
+WC = torch.tensor([1, 1]).cuda().type(tFloat)
+
+ACT1 = F.relu
+ACT2 = F.relu
+
+
+
 class MLPnet(nn.Module):
     def __init__(self, n_feature, n_h1, n_h2, n_h3, n_output):
         super(MLPnet, self).__init__()
@@ -132,38 +151,56 @@ class MLPnet_deeperer(nn.Module):
         X = self.output(X)
         return X
 
+class MLP_BN(nn.Module):
+    def __init__(self):
+        super(MLP_BN, self).__init__()
+        # self.bn_input = nn.BatchNorm1d(N_INPUT, momentum=BN_MOMEN) # for input data
+        self.h1 = nn.Linear(N_INPUT, N_H1)
+        self._set_init(self.h1)
+        self.bn_h1 = nn.BatchNorm1d(N_H1, momentum=BN_MOMEN)
+        self.h2 = nn.Linear(N_H1, N_H2)
+        self._set_init(self.h2)
+        self.bn_h2 = nn.BatchNorm1d(N_H2, momentum=BN_MOMEN)
+        self.h3 = nn.Linear(N_H2, N_H3)
+        self._set_init(self.h3)
+        self.bn_h3 = nn.BatchNorm1d(N_H3, momentum=BN_MOMEN)
+        self.output = nn.Linear(N_H3, N_OUTPUT)
+        self._set_init(self.output)
+
+    def _set_init(self, layer):
+        nn.init.orthogonal(layer.weight)
+        nn.init.constant(layer.bias, BIAS)
+
+    def forward(self, X):
+        # X = self.bn_input(X)
+        X = ACT1(self.h1(X))
+        X = self.bn_h1(X)
+        X = ACT2(self.h2(X))
+        X = self.bn_h2(X)
+        X = ACT2(self.h3(X))
+        X = self.bn_h3(X)
+        X = self.output(X)
+        return X
+
+
 X, y = input_data(2014, n_classes=2) #, preprocessing='smote_2_class'
-X, y = shuffle(X, y)
-# # X_val, y_val = input_data(2007, n_classes=2)
-# # X, y =batch_feed(0, X, y, 90000)
-X, X_val, y, y_val = train_test_split(X, y, test_size=0.3, random_state=42)
-
-# X = pd.read_csv('./data4comp/X_DEsyn.csv').as_matrix().astype(float)
-# y = pd.read_csv('./data4comp/y_DEsyn.csv').values.flatten()
-
-print('Finished input data, resampling...')
-
 X = normalize(X, norm='l2', axis=0)
 
+X, X_val, y, y_val = train_test_split(X, y, test_size=0.3, random_state=42, shuffle=True)
+print('Finished input data, resampling...')
+
+# X = normalize(X, norm='l2', axis=0)
+
 # X, y = iD.smote(X, y)
-X, y = iD.DE_synthetic(X, y, 5000, 20) #int(X.shape[0] / 10)
+X, y = iD.DE_synthetic(X, y, int(X.shape[0] / 10), 20, super=None) #int(X.shape[0] / 10)
 X, y = shuffle(X, y)
-
-
 
 X_val_tensor = Variable(torch.from_numpy(X_val).cuda().type(tFloat), requires_grad=False)
 y_val_tensor = Variable(torch.from_numpy(y_val).cuda().type(tLong), requires_grad=False)
 
 # mlp = MLPnet(n_feature=27, n_h1=40, n_h2=25, n_h3=10, n_output=2)
 
-mlp = MLPnet_deeper(n_feature=29,
-             n_h1=40,
-             n_h2=50,
-             n_h3=40,
-             n_h4=30,
-             n_h5=20,
-             n_h6=10,
-             n_output=2)
+mlp = MLP_BN().cuda()
 
 # mlp = MLPnet_deeperer(n_feature=27,
 #                       n_h1=40,
@@ -177,13 +214,8 @@ mlp = MLPnet_deeper(n_feature=29,
 #                       n_h9=5,
 #                       n_output=2)
 
-batch_size = 500
-iter = 10000
-WC = torch.tensor([1, 1]).cuda().type(tFloat)
-
-mlp = mlp.cuda()
-optimizer = opt.SGD(mlp.parameters(), lr=0.0001, momentum=0.9) #, weight_decay=0.05
-# optimizer = opt.Adamax(mlp.parameters(), lr=0.001)
+# optimizer = opt.SGD(mlp.parameters(), lr=0.0001, momentum=0.9) #, weight_decay=0.05
+optimizer = opt.Adam(mlp.parameters(), lr=LR, weight_decay=0.05)
 cost_function = nn.CrossEntropyLoss(weight=WC).cuda()
 iter_set, loss_set, train_acc_set, val_acc_set, val_recall_set = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
 fig = plt.figure()

@@ -10,7 +10,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, recall_score, confusion_matrix
+from sklearn.metrics import accuracy_score, recall_score, confusion_matrix, f1_score
 import math
 
 def smote(data, label):
@@ -18,7 +18,7 @@ def smote(data, label):
     sm = SMOTE(ratio='minority',
                k_neighbors=5,
                m_neighbors=10,
-               kind='svm',
+               kind='borderline2',
                random_state=42,
                n_jobs=6)
     data_resampled, label_resampled = sm.fit_sample(data, label)
@@ -28,10 +28,10 @@ def smote(data, label):
 def nearmiss(data, label):
     n_pos_label_0 = data[label==0, :].shape[0]
     # n_neg_label_1 = data[label==1, :].shape[0]
-    n_neg_kep = 3*n_pos_label_0
+    n_neg_kep = 5*n_pos_label_0
     dict = {0 : n_pos_label_0, 1 : n_neg_kep}
     nm = NearMiss(ratio = dict,
-                  version = 1,
+                  version = 2,
                   random_state=42,
                   n_jobs=6,
                   n_neighbors=3)
@@ -150,7 +150,7 @@ def DE_adjust(data):
     # print('New DE_adjusted: %s' %(new_data[0, 0: 3]))
     return new_data
 
-def DE_synthetic(data, label, batch_size, evo_round):
+def DE_synthetic(data, label, batch_size, evo_round, super=None):
     clf = KNeighborsClassifier()
     n_window = math.ceil(data.shape[0]/batch_size)
     new_data = data[0, :].reshape(1, data.shape[1])
@@ -165,8 +165,12 @@ def DE_synthetic(data, label, batch_size, evo_round):
         X_new = X_resampled[(X.shape[0]): (X_resampled.shape[0]), :]
         y_new = y_resampled[(y.shape[0]): (y_resampled.shape[0])]
         clf.fit(X_resampled, y_resampled)
-        accuracy_real = accuracy_score(label_test, clf.predict(data_test))
-        # accuracy_real = recall_score(label_test, clf.predict(data_test), pos_label=0)
+        if super == 'f1':
+            accuracy_real = f1_score(label_test, clf.predict(data_test), pos_label=0)
+        elif super == 'recall':
+            accuracy_real = recall_score(label_test, clf.predict(data_test), pos_label=0)
+        else:
+            accuracy_real = accuracy_score(label_test, clf.predict(data_test))
         print('benchmark: %.2f' %accuracy_real)
         X_DE = DE_adjust(X_new)
         # print('ready to evo: %d' %(X_DE.shape[0]))
@@ -174,8 +178,12 @@ def DE_synthetic(data, label, batch_size, evo_round):
         # print('1st evo finished: %d' %(X_resampled_DE.shape[0]))
         y_resampled_DE = np.append(y, y_new, axis=0)
         clf.fit(X_resampled_DE, y_resampled_DE)
-        accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
-        # accuracy_DE = recall_score(label_test, clf.predict(data_test), pos_label=0)
+        if super == 'f1':
+            accuracy_DE = f1_score(label_test, clf.predict(data_test), pos_label=0)
+        elif super == 'recall':
+            accuracy_DE = recall_score(label_test, clf.predict(data_test), pos_label=0)
+        else:
+            accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
         count = 0
         print('evolution round: %d, DE_adjusted: %.2f' %(count, accuracy_DE))
         while (accuracy_DE <= accuracy_real + 0.1) and (count < evo_round):
@@ -183,8 +191,12 @@ def DE_synthetic(data, label, batch_size, evo_round):
             X_DE = DE_adjust(X_DE) #according to the last generation
             X_resampled_DE = np.append(X, X_DE, axis=0)
             clf.fit(X_resampled_DE, y_resampled_DE)
-            accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
-            # accuracy_DE = recall_score(label_test, clf.predict(data_test), pos_label=0)
+            if super == 'f1':
+                accuracy_DE = f1_score(label_test, clf.predict(data_test), pos_label=0)
+            elif super == 'recall':
+                accuracy_DE = recall_score(label_test, clf.predict(data_test), pos_label=0)
+            else:
+                accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
             print('evolution round: %d, DE_adjusted: %.2f' %(count, accuracy_DE))
         if accuracy_DE <= accuracy_real:
             X_resampled_DE = X_resampled
@@ -196,5 +208,44 @@ def DE_synthetic(data, label, batch_size, evo_round):
     return new_data, new_label
 
 if __name__ == "__main__":
-    y_train = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2006_label.csv')
+    X = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2014_data.csv')
+    X = X.as_matrix().astype(float)
+    y = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2014_label.csv')
+    y = y.replace([1, 2], 0)
+    y = y.replace([3, 4, 5], 1).values.flatten()
+
+    X, y = smote(X, y)
+    X = pd.DataFrame(X)
+    y = pd.DataFrame(y)
+    X.to_csv('X_smote.csv', index=False)
+    y.to_csv('y_smote.csv', index=False)
+
+    X = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2014_data.csv')
+    X = X.as_matrix().astype(float)
+    y = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2014_label.csv')
+    y = y.replace([1, 2], 0)
+    y = y.replace([3, 4, 5], 1).values.flatten()
+
+    X, y = nearmiss(X, y)
+    X, y = smote(X, y)
+    X = pd.DataFrame(X)
+    y = pd.DataFrame(y)
+    X.to_csv('X_combo.csv', index=False)
+    y.to_csv('y_combo.csv', index=False)
+
+    X = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2014_data.csv')
+    X = X.as_matrix().astype(float)
+    y = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data_encoded/2014_label.csv')
+    y = y.replace([1, 2], 0)
+    y = y.replace([3, 4, 5], 1).values.flatten()
+
+    X, y = DE_synthetic(X, y, X.shape[0], 20)
+    X = pd.DataFrame(X)
+    y = pd.DataFrame(y)
+    X.to_csv('X_DEsyn.csv', index=False)
+    y.to_csv('y_DEsyn.csv', index=False)
+
+
+
+
 
