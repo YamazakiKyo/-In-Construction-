@@ -7,7 +7,9 @@ from torch.autograd import Variable
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score
+
+from sklearn.preprocessing import normalize
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score,f1_score
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
@@ -66,20 +68,20 @@ class MLPnet_deeper(nn.Module):
         nn.init.orthogonal(self.output.weight)
 
     def forward(self, X):
-        X = F.relu(self.h1(X))
-        # X = F.leaky_relu(self.h1(X), negative_slope=0.0001)
-        X = F.relu(self.h2(X))
-        # X = F.leaky_relu(self.h2(X), negative_slope=0.0001)
-        X = F.relu(self.h3(X))
-        # X = F.leaky_relu(self.h3(X), negative_slope=0.0001)
-        X = F.dropout(X, p=0.3, training=self.training)
+        # X = F.relu(self.h1(X))
+        X = F.leaky_relu(self.h1(X), negative_slope=0.0001)
+        # X = F.relu(self.h2(X))
+        X = F.leaky_relu(self.h2(X), negative_slope=0.0001)
+        # X = F.relu(self.h3(X))
+        X = F.leaky_relu(self.h3(X), negative_slope=0.0001)
+        X = F.dropout(X, p=0.2, training=self.training)
         X = F.relu(self.h4(X))
         # X = F.leaky_relu(self.h4(X), negative_slope=0.0001)
         X = F.relu(self.h5(X))
         # X = F.leaky_relu(self.h5(X), negative_slope=0.0001)
         X = F.relu(self.h6(X))
         # X = F.leaky_relu(self.h6(X), negative_slope=0.0001)
-        X = F.dropout(X, p=0.3, training=self.training)
+        X = F.dropout(X, p=0.2, training=self.training)
         X = self.output(X)
         return X
 
@@ -132,49 +134,55 @@ class MLPnet_deeperer(nn.Module):
 
 X, y = input_data(2014, n_classes=2) #, preprocessing='smote_2_class'
 X, y = shuffle(X, y)
-# X_val, y_val = input_data(2007, n_classes=2)
-# X, y =batch_feed(0, X, y, 90000)
+# # X_val, y_val = input_data(2007, n_classes=2)
+# # X, y =batch_feed(0, X, y, 90000)
 X, X_val, y, y_val = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# X = pd.read_csv('./data4comp/X_DEsyn.csv').as_matrix().astype(float)
+# y = pd.read_csv('./data4comp/y_DEsyn.csv').values.flatten()
+
 print('Finished input data, resampling...')
 
-# X = pd.read_csv('X.csv').as_matrix().astype(float)
-# y = pd.read_csv('y.csv').values.flatten()
+X = normalize(X, norm='l2', axis=0)
 
+# X, y = iD.smote(X, y)
 X, y = iD.DE_synthetic(X, y, 5000, 20) #int(X.shape[0] / 10)
 X, y = shuffle(X, y)
+
+
 
 X_val_tensor = Variable(torch.from_numpy(X_val).cuda().type(tFloat), requires_grad=False)
 y_val_tensor = Variable(torch.from_numpy(y_val).cuda().type(tLong), requires_grad=False)
 
 # mlp = MLPnet(n_feature=27, n_h1=40, n_h2=25, n_h3=10, n_output=2)
 
-# mlp = MLPnet_deeper(n_feature=27,
-#              n_h1=60,
-#              n_h2=50,
-#              n_h3=40,
-#              n_h4=30,
-#              n_h5=20,
-#              n_h6=10,
-#              n_output=2)
+mlp = MLPnet_deeper(n_feature=29,
+             n_h1=40,
+             n_h2=50,
+             n_h3=40,
+             n_h4=30,
+             n_h5=20,
+             n_h6=10,
+             n_output=2)
 
-mlp = MLPnet_deeperer(n_feature=27,
-                      n_h1=40,
-                      n_h2=50,
-                      n_h3=60,
-                      n_h4=50,
-                      n_h5=40,
-                      n_h6=30,
-                      n_h7=20,
-                      n_h8=10,
-                      n_h9=5,
-                      n_output=2)
+# mlp = MLPnet_deeperer(n_feature=27,
+#                       n_h1=40,
+#                       n_h2=50,
+#                       n_h3=60,
+#                       n_h4=50,
+#                       n_h5=40,
+#                       n_h6=30,
+#                       n_h7=20,
+#                       n_h8=10,
+#                       n_h9=5,
+#                       n_output=2)
 
 batch_size = 500
-iter = 20000
-WC = torch.tensor([3, 1]).cuda().type(tFloat)
+iter = 10000
+WC = torch.tensor([1, 1]).cuda().type(tFloat)
 
 mlp = mlp.cuda()
-optimizer = opt.SGD(mlp.parameters(), lr=0.001, momentum=0.5, weight_decay=0.01) #
+optimizer = opt.SGD(mlp.parameters(), lr=0.0001, momentum=0.9) #, weight_decay=0.05
 # optimizer = opt.Adamax(mlp.parameters(), lr=0.001)
 cost_function = nn.CrossEntropyLoss(weight=WC).cuda()
 iter_set, loss_set, train_acc_set, val_acc_set, val_recall_set = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
@@ -212,7 +220,7 @@ for i in range(iter):
             _, pred_val = torch.max(F.softmax(mlp(X_val_tensor), dim=1), 1)
             y_pred_val = pred_val.data.cpu().numpy()
             acc_val = sum(y_pred_val == y_val) / len(y_val)
-            recall_val = recall_score(y_val, y_pred_val, pos_label=0)
+            recall_val = f1_score(y_val, y_pred_val, pos_label=0)
             val_acc_set = np.append(val_acc_set, acc_val)
             val_recall_set = np.append(val_recall_set, recall_val)
 
@@ -230,7 +238,7 @@ for i in range(iter):
         line1, = ax.plot(iter_set, train_acc_set, '-r', label='Training_acc')
         line2, = ax.plot(iter_set, val_acc_set, '-b', label='Validation_acc')
         line3, = ax2.plot(iter_set, loss_set, '-k', label='Loss')
-        line4, = ax.plot(iter_set, val_recall_set, '-g', label='Validation_recall')
+        line4, = ax.plot(iter_set, val_recall_set, '-g', label='Validation_F1-score')
         ax.legend(loc=3)
         ax2.legend(loc=8)
         plt.pause(0.1)
@@ -239,7 +247,7 @@ print('Training Done!')
 print('Confusion Matrix: ')
 print(confusion_matrix(y_val, y_pred_val))
 print('test accuracy: %.2f' %(accuracy_score(y_val, y_pred_val)))
-print('test recall: %.2f' %(recall_score(y_val, y_pred_val, pos_label=0)))
+print('test F1-score: %.2f' %(recall_score(y_val, y_pred_val, pos_label=0)))
 
 # output_data(X_batch_res, y_batch_res)
 
