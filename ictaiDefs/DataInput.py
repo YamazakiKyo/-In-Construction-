@@ -28,15 +28,16 @@ def smote(data, label):
 def nearmiss(data, label):
     n_pos_label_0 = data[label==0, :].shape[0]
     # n_neg_label_1 = data[label==1, :].shape[0]
-    n_neg_kep = 5*n_pos_label_0
+    n_neg_kep = 5 * n_pos_label_0
     dict = {0 : n_pos_label_0, 1 : n_neg_kep}
     nm = NearMiss(ratio = dict,
                   version = 2,
                   random_state=42,
                   n_jobs=6,
-                  n_neighbors=3)
+                  n_neighbors=5)
     data_resampled, label_resampled = nm.fit_sample(data, label)
     return data_resampled, label_resampled
+    # return data, label
 
 def enn(data, label):
     # enn = EditedNearestNeighbours(ratio='majority', n_neighbors=30, kind_sel='mode', random_state=42)
@@ -88,6 +89,8 @@ def input_data(year, n_classes=3, one_hot=False, preprocessing=None):
     if n_classes == 2:
         y_train = y_train.replace([1, 2], 0)
         y_train = y_train.replace([3, 4, 5], 1).values.flatten()
+        # y_train = y_train.replace(1, 0)
+        # y_train = y_train.replace([2, 3, 4, 5], 1).values.flatten()
     if n_classes == 3:
         y_train = y_train.replace([1, 2, 3, 5], 1)
         y_train = y_train.replace(4, 2).values.flatten()
@@ -141,13 +144,13 @@ def DE_adjust(data):
         Fi = np.random.rand()
     # print('data size: %.1f' %(data.shape[0]))
     for i in range(data.shape[0]):
-        TR1 = data[np.random.randint(data.shape[0]-1), :]
-        TR2 = data[np.random.randint(data.shape[0]-1), :]
-        TR3 = data[np.random.randint(data.shape[0]-1), :]
+        TR1 = data[np.random.randint(data.shape[0]-1), :].reshape(1, -1)
+        TR2 = data[np.random.randint(data.shape[0]-1), :].reshape(1, -1)
+        TR3 = data[np.random.randint(data.shape[0]-1), :].reshape(1, -1)
         new_data[i, :] = data[i, :] + KK * (TR1-data[i, :]) + Fi * (TR2-TR3)
         # print('Scaning row: %.1f ' %i)
     # print('TR1: %s, TR2: %s, TR3: %s' %(TR1, TR2, TR3))
-    # print('New DE_adjusted: %s' %(new_data[0, 0: 3]))
+    print('New DE_adjusted: %s' %(new_data[0, 0: 3]))
     return new_data
 
 def DE_synthetic(data, label, batch_size, evo_round, super=None):
@@ -186,7 +189,8 @@ def DE_synthetic(data, label, batch_size, evo_round, super=None):
             accuracy_DE = accuracy_score(label_test, clf.predict(data_test))
         count = 0
         print('evolution round: %d, DE_adjusted: %.2f' %(count, accuracy_DE))
-        while (accuracy_DE <= accuracy_real + 0.1) and (count < evo_round):
+        ###################################################################
+        while (accuracy_DE <= accuracy_real + 0.05) and (count < evo_round):
             count += 1
             X_DE = DE_adjust(X_DE) #according to the last generation
             X_resampled_DE = np.append(X, X_DE, axis=0)
