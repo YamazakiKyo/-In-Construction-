@@ -2,6 +2,7 @@ from tqdm import tqdm
 from time import sleep # A tool of progress bar for time control
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import normalize
 
 def del_col(df, col):
     '''delete one column in dataFrame with inplacement'''
@@ -17,7 +18,7 @@ def TenYrsData(yr):
     # df2011 = pd.read_csv('./data/crash2011.csv')
     # df2012 = pd.read_csv('./data/crash2012.csv')
     # df2013 = pd.read_csv('./data/crash2013.csv')
-    # df2014 = pd.read_csv('./data/crash2014.csv')
+    # df2014 = pd.read_csv('D:\PyProject\Distraction_Affected_Crashes\data\crash2014.csv')
     # df2015 = pd.read_csv('./data/crash2015.csv')
     # frames = [df2006, df2007, df2008, df2009, df2010, df2011, df2012, df2013, df2014, df2015]
     # df = pd.concat(frames)
@@ -44,7 +45,8 @@ def CityLevel(row):
         return 'D'
     if row['Population (2010)[1]'] <= 5000:
         return 'E'
-    return 'F'
+    else:
+        return 'F'
 
 
 def AgeGroup(row):
@@ -91,23 +93,30 @@ def CrashTime(row):
 
 def VehicleType(row):
     '''Classify the vehicle types by group'''
-    if row['VEH_TYPE_CD'] == 'A' or 'C' or 'S':
-        return 'A'
-    if row['VEH_TYPE_CD'] == 'B':
-        return 'B'
-    if row['VEH_TYPE_CD'] == 'D':
-        return 'C'
-    if row['VEH_TYPE_CD'] == 'E' or 'F':
-        return 'D'
-    if row['VEH_TYPE_CD'] == 'G':
-        return 'E'
-    if row['VEH_TYPE_CD'] == 'H':
-        return 'F'
-    if row['VEH_TYPE_CD'] == 'I':
-        return 'G'
-    if row['VEH_TYPE_CD'] == 'J' or 'K' or 'L' or 'M' or 'N' or 'P' or 'Q' or 'R' or 'T' or 'V':
-        return 'H'
-    return np.NaN
+    abnVT = ['J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T', 'V']
+    for items in abnVT:
+        if row['VEH_TYPE_CD'] == str(items):
+            return np.NaN
+        else:
+            return row['VEH_TYPE_CD']
+
+def DRState(row):
+    ''' Clearn the DR_STATE column '''
+    usStateAbbv = ['AK', 'AL','AR','AZ', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+                   'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA',
+                   'MD', 'ME', 'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE',
+                   'NH', 'NJ', 'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI',
+                   'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY']
+    try:
+        row['DR_STATE'] = row['DR_STATE'].upper()
+    except:
+        print('No str found!')
+    for state in usStateAbbv:
+        if row['DR_STATE'] == str(state):
+            return row['DR_STATE']
+        else:
+            return np.NaN
+
 
 
 def VehicleYear(row):
@@ -158,8 +167,8 @@ def noiseRemover(df):
     for m in tqdm(['F', 'I', 'J', 'K', 'L', 'Y', 'Z', 'G', 'H', 'M']):
         df['SURF_TYPE_CD'] = df['SURF_TYPE_CD'].replace(str(m), np.NaN)
         sleep(0.1)
-    for i in tqdm(['B', 'D', 'E', 'F']):
-        df.loc[df['LIGHTING_CD'] == str(i), 'LIGHTING_CD'] = 'B'
+    # for i in tqdm(['B', 'D', 'E', 'F']):
+    #     df.loc[df['LIGHTING_CD'] == str(i), 'LIGHTING_CD'] = 'B'
     df['LOC_TYPE_CD'] = df['LOC_TYPE_CD'].replace('Z', np.NaN)
     df['DR_SEX'] = df['DR_SEX'].replace('U', np.NaN)
     df['DR_SEX'] = df['DR_SEX'].replace('W', 'F')
@@ -170,14 +179,14 @@ def noiseRemover(df):
     df['CRASH_YEAR'] = df['CRASH_YEAR'].replace(2000, np.NaN)
     df['CRASH_YEAR'] = df['CRASH_YEAR'].replace(2002, np.NaN)
     df['CRASH_YEAR'] = df['CRASH_YEAR'].replace(1936, np.NaN)
-    for i in tqdm(['A', 'B', 'D', 'H', 'I']):
-        df['PRI_CONTRIB_FAC_CD'] = df['PRI_CONTRIB_FAC_CD'].replace(str(i), np.NaN)
-        df['SEC_CONTRIB_FAC_CD'] = df['SEC_CONTRIB_FAC_CD'].replace(str(i), np.NaN)
-        sleep(0.1)
-    for j in tqdm(['C', 'E', 'F', 'G', 'J', 'K', 'L', 'M']):
-        df.loc[(df['PRI_CONTRIB_FAC_CD'].isnull == True) & (
-                    df['SEC_CONTRIB_FAC_CD'] == str(j)), 'PRI_CONTRIB_FAC_CD'] = str(j)
-        sleep(0.1)
+    # for i in tqdm(['A', 'B', 'D', 'H', 'I']):
+    #     df['PRI_CONTRIB_FAC_CD'] = df['PRI_CONTRIB_FAC_CD'].replace(str(i), np.NaN)
+    #     df['SEC_CONTRIB_FAC_CD'] = df['SEC_CONTRIB_FAC_CD'].replace(str(i), np.NaN)
+    #     sleep(0.1)
+    # for j in tqdm(['C', 'E', 'F', 'G', 'J', 'K', 'L', 'M']):
+    #     df.loc[(df['PRI_CONTRIB_FAC_CD'].isnull == True) & (
+    #                 df['SEC_CONTRIB_FAC_CD'] == str(j)), 'PRI_CONTRIB_FAC_CD'] = str(j)
+    #     sleep(0.1)
 
     '''Highway type classification'''
     for item in tqdm(['A', 'B', 'C', 'D', 'E', 'G']):
@@ -197,17 +206,18 @@ def noiseRemover(df):
     df['DR_STATE'] = df['DR_STATE'].str.upper()
     df.loc[(df['DR_STATE'] == 'LA') | (df['DR_STATE'] == 'LOUISIANA'), 'From_Louisiana'] = 'Yes'
     df.loc[(df['DR_STATE'] != 'LA') & (df['DR_STATE'] != 'LOUISIANA'), 'From_Louisiana'] = 'No'
+    # df['DR_STATE'] = df.apply(lambda row: DRState(row), axis=1)
 
     '''Number of people in the vehicle when the crashes occurred'''
-    df.loc[df['NUM_OCC'].astype(float) == 1, 'num_occupant'] = 'One'
-    df.loc[df['NUM_OCC'].astype(float) == 2, 'num_occupant'] = 'Two'
-    df.loc[df['NUM_OCC'].astype(float) == 3, 'num_occupant'] = 'Three'
-    df.loc[df['NUM_OCC'].astype(float).isin(range(1, 4)) == False, 'num_occupant'] = 'More_than_Three'
+    # df.loc[df['NUM_OCC'].astype(float) == 1, 'num_occupant'] = 'One'
+    # df.loc[df['NUM_OCC'].astype(float) == 2, 'num_occupant'] = 'Two'
+    # df.loc[df['NUM_OCC'].astype(float) == 3, 'num_occupant'] = 'Three'
+    # df.loc[df['NUM_OCC'].astype(float).isin(range(1, 4)) == False, 'num_occupant'] = 'More_than_Three'
 
     '''Number of vehicles when the crshes occurred'''
-    df.loc[df['NUM_VEH'] == 1, 'num_vehicle'] = 'One'
-    df.loc[df['NUM_VEH'] == 2, 'num_vehicle'] = 'Two'
-    df.loc[df['NUM_VEH'] >= 3, 'num_vehicle'] = 'More_than_two'
+    # df.loc[df['NUM_VEH'] == 1, 'num_vehicle'] = 'One'
+    # df.loc[df['NUM_VEH'] == 2, 'num_vehicle'] = 'Two'
+    # df.loc[df['NUM_VEH'] >= 3, 'num_vehicle'] = 'More_than_two'
 
     '''Aggressive driving behabior exists when the crashes occurred'''
     df.loc[df['agressive'] >= 1, 'aggressive_driving'] = 'Yes'
@@ -253,14 +263,14 @@ def noiseRemover(df):
     '''Delete useless columns'''
     Useless_list = ['NUM_DRI_IK', 'NUM_DRI_INJ', 'NUM_DRI_KIL', 'NUM_OCC_IK', 'NUM_OCC_INJ',
                     'NUM_OCC_KIL', 'NUM_PED_IK', 'NUM_PED_INJ', 'NUM_PED_KIL', 'NUM_TOT_IK', 'violation',
-                    'SEC_CONTRIB_FAC_CD', 'MAN_COLL_CD', 'DR_STATE', 'NUM_OCC', 'NUM_VEH', 'agressive',
+                    'MAN_COLL_CD', 'agressive', 'CRASH_NUM',
                     'DR_AGE', 'CR_HOUR', 'VEH_TYPE_CD', 'VEH_YEAR', 'HWY_TYPE_CD', 'DR_DISTRACT_CD',
                     'DR_COND_CD', 'DRUGS', 'ALCOHOL', 'NUM_TOT_INJ', 'NUM_TOT_KIL']
     for ul in Useless_list:
         del_col(df, str(ul))
     return df
 
-for yr in range(2006, 2007):
+for yr in range(2014, 2015):
     df_10yrs = TenYrsData(yr)
     df_cityLevel = PopCollect()
     df_levelMerged = MergePop(df_10yrs, df_cityLevel)

@@ -28,7 +28,7 @@ def smote(data, label):
 def nearmiss(data, label):
     n_pos_label_0 = data[label==0, :].shape[0]
     # n_neg_label_1 = data[label==1, :].shape[0]
-    n_neg_kep = 5 * n_pos_label_0
+    n_neg_kep = 3 * n_pos_label_0
     dict = {0 : n_pos_label_0, 1 : n_neg_kep}
     nm = NearMiss(ratio = dict,
                   version = 2,
@@ -153,7 +153,7 @@ def DE_adjust(data):
     print('New DE_adjusted: %s' %(new_data[0, 0: 3]))
     return new_data
 
-def DE_synthetic(data, label, batch_size, evo_round, super=None):
+def DE_synthetic(data, label, batch_size, evo_round, super=None, req=0):
     clf = KNeighborsClassifier()
     n_window = math.ceil(data.shape[0]/batch_size)
     new_data = data[0, :].reshape(1, data.shape[1])
@@ -190,7 +190,7 @@ def DE_synthetic(data, label, batch_size, evo_round, super=None):
         count = 0
         print('evolution round: %d, DE_adjusted: %.2f' %(count, accuracy_DE))
         ###################################################################
-        while (accuracy_DE <= accuracy_real + 0.05) and (count < evo_round):
+        while (accuracy_DE <= accuracy_real + req) and (count < evo_round):
             count += 1
             X_DE = DE_adjust(X_DE) #according to the last generation
             X_resampled_DE = np.append(X, X_DE, axis=0)
